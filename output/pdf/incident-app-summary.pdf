@@ -1,0 +1,59 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+6 0 obj
+<< /Length 1863 >>
+stream
+BT /F2 14 Tf 48 744 Td (Incident Analysis Dashboard - App Summary) Tj ET
+BT /F2 14 Tf 48 726 Td (What it is) Tj ET
+BT /F1 10 Tf 48 708 Td (A single-page incident analytics dashboard for Oracle databases. A Flask API serves) Tj ET
+BT /F1 10 Tf 48 694 Td (generated incident data and a React UI visualizes trends.) Tj ET
+BT /F2 14 Tf 48 680 Td (Who it is for) Tj ET
+BT /F1 10 Tf 48 662 Td (Incident managers and database operations teams monitoring Oracle RDS and Oracle on EC2.) Tj ET
+BT /F2 14 Tf 48 648 Td (What it does) Tj ET
+BT /F1 10 Tf 48 630 Td (- Shows total incidents and active database counts.) Tj ET
+BT /F1 10 Tf 48 616 Td (- Highlights the most frequent database and top incident types.) Tj ET
+BT /F1 10 Tf 48 602 Td (- Charts monthly incident volume trends.) Tj ET
+BT /F1 10 Tf 48 588 Td (- Charts incidents by database.) Tj ET
+BT /F1 10 Tf 48 574 Td (- Shows incident patterns by weekday or hour.) Tj ET
+BT /F1 10 Tf 48 560 Td (- Computes month-over-month incident changes.) Tj ET
+BT /F2 14 Tf 48 546 Td (How it works) Tj ET
+BT /F1 10 Tf 48 528 Td (- Backend: Flask app generates in-memory sample incidents and exposes /api/incidents,) Tj ET
+BT /F1 10 Tf 48 514 Td (  /api/summary, and /api/patterns.) Tj ET
+BT /F1 10 Tf 48 500 Td (- Frontend: React app fetches summary and patterns data and renders charts with Chart.js.) Tj ET
+BT /F1 10 Tf 48 486 Td (- Dev server: Vite proxies /api requests to the Flask server at http://localhost:5001.) Tj ET
+BT /F1 10 Tf 48 472 Td (- Persistence and auth: Not found in repo.) Tj ET
+BT /F2 14 Tf 48 458 Td (How to run) Tj ET
+BT /F1 10 Tf 48 440 Td (- Backend: cd backend; python3 -m pip install -r requirements.txt; python3 app.py \(listens) Tj ET
+BT /F1 10 Tf 48 426 Td (  on port 5001\).) Tj ET
+BT /F1 10 Tf 48 412 Td (- Frontend: cd frontend; npm install; npm run dev \(Vite dev server on port 5173\).) Tj ET
+endstream
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000257 00000 n 
+0000000327 00000 n 
+0000000402 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+2317
+%%EOF
