@@ -4608,6 +4608,332 @@ body {
 }
 
 /* ═══════════════════════════════════════════
+   DASHBOARD VISUAL POLISH
+═══════════════════════════════════════════ */
+
+/* ── Body background: richer slate ── */
+.saas-body {
+  background: #f1f4f8;
+  gap: 20px;
+  padding: 28px 36px 64px;
+}
+
+/* ── Top chrome: deeper shadow, gradient accent ── */
+.saas-top-chrome {
+  background: linear-gradient(180deg, #ffffff 0%, #fafbfc 100%);
+  border-bottom: none;
+  box-shadow: 0 1px 0 #e2e8f0, 0 4px 20px rgba(15, 23, 42, 0.05);
+}
+
+/* ── KPI strip: add top accent gradient line ── */
+.saas-kpi-strip {
+  border-bottom: 1px solid #e8edf3;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.03) 0%, transparent 100%);
+}
+
+.saas-kpi-block {
+  padding: 30px 36px;
+}
+
+.saas-kpi-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+  margin-bottom: 10px;
+}
+
+.saas-kpi-value {
+  font-size: 2.6rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+/* ── Filter bar refinement ── */
+.saas-filter-bar {
+  padding: 12px 36px;
+  background: #ffffff;
+  border-top: 1px solid #f1f5f9;
+}
+
+.saas-breadcrumb {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* ── Time filter buttons: pill style ── */
+.saas-time-group {
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.saas-time-btn {
+  padding: 6px 13px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #64748b;
+  background: #fff;
+  transition: background 0.12s, color 0.12s;
+}
+
+.saas-time-btn.active {
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  color: #fff;
+}
+
+.saas-time-btn:hover:not(.active) {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+/* ── Main chart panel: card header ── */
+.saas-chart-panel {
+  background: #fff;
+  padding: 24px 36px 28px;
+  border-bottom: none;
+  box-shadow: 0 1px 0 #e2e8f0, 0 4px 20px rgba(15, 23, 42, 0.04);
+}
+
+/* ── Exec sections: card style ── */
+.saas-dash .exec-section {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px 28px 24px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05), 0 6px 20px rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(226, 232, 240, 0.7);
+}
+
+/* ── KPI compact row: card style ── */
+.saas-dash .exec-kpi-row-compact {
+  gap: 16px;
+}
+
+/* ── Section titles: colored accent bar ── */
+.exec-section-title {
+  font-family: "Inter", sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: #475569;
+  margin-bottom: 22px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.exec-section-title::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 16px;
+  background: linear-gradient(180deg, #6366f1 0%, #3b82f6 100%);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ── KPI cards: accent top border + hover lift ── */
+.exec-kpi-card-saas {
+  border-radius: 14px;
+  border: 1px solid #e8edf3;
+  border-top: 3px solid #6366f1;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.04);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  padding: 22px 22px 20px;
+}
+
+.exec-kpi-card-saas:nth-child(2) { border-top-color: #ef4444; }
+.exec-kpi-card-saas:nth-child(3) { border-top-color: #f59e0b; }
+.exec-kpi-card-saas:nth-child(4) { border-top-color: #22c55e; }
+
+.exec-kpi-card-saas:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+}
+
+.kpi-saas-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  margin-bottom: 10px;
+}
+
+.kpi-saas-value {
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+/* ── Risk cards: hover lift ── */
+.exec-risk-card {
+  border-radius: 14px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.exec-risk-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.1);
+}
+
+/* ── Team accountability table ── */
+.exec-table-wrap {
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  border: 1px solid #e8edf3;
+}
+
+.exec-table th {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e8edf3;
+}
+
+.exec-table tbody tr:nth-child(even) {
+  background: #fafbfd;
+}
+
+.exec-table tbody tr:hover {
+  background: #eff6ff;
+  transition: background 0.1s;
+}
+
+.exec-table td {
+  padding: 11px 16px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.team-name-cell {
+  color: #1e293b;
+}
+
+/* ── Trend pills ── */
+.trend-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.trend-pill.trend-up {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.trend-pill.trend-down {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.trend-pill.trend-flat {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+/* ── Strategic action cards: hover lift ── */
+.exec-action-card {
+  border-radius: 14px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.exec-action-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.1);
+}
+
+/* ── Chart panels: consistent card look ── */
+.exec-panel {
+  border-radius: 14px;
+  border: 1px solid #e8edf3;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 6px 20px rgba(15, 23, 42, 0.04);
+}
+
+.exec-panel h3 {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+/* ── Heatmap: tighter grid ── */
+.exec-heatmap {
+  gap: 4px;
+}
+
+.heatmap-cell {
+  border-radius: 8px;
+  min-height: 42px;
+  font-size: 0.85rem;
+}
+
+/* ── SLA table ── */
+.sla-table th {
+  color: #64748b;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: #f8fafc;
+}
+
+/* ── Priority badges: more polished ── */
+.priority-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.06em;
+}
+
+.priority-badge.critical {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.priority-badge.high {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.priority-badge.medium {
+  background: #fefce8;
+  color: #a16207;
+}
+
+.priority-badge.low {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+/* ── Insights row: card style ── */
+.insight-title-item {
+  border-radius: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.insight-title-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.07);
+}
+
+/* ═══════════════════════════════════════════
    ACCESSIBILITY UTILITIES (WCAG 2.1)
 ═══════════════════════════════════════════ */
 
