@@ -513,120 +513,18 @@ export default function App() {
       {/* DB Health Status */}
       {dbHealth.length > 0 && (
         <section className="db-health-section">
-          <div className="db-health-header">
-            <h2>Database Health Status</h2>
-            <p className="db-health-sub">Per-database incident health — product line &amp; application scoped</p>
-          </div>
-          <div className="db-health-grid">
+          <span className="db-health-label">Database Status</span>
+          <div className="db-health-strip">
             {dbHealth.map((db) => {
-              const statusLabel = db.health_status === "healthy" ? "Healthy"
-                : db.health_status === "warning" ? "Warning" : "Critical";
-              const sevMax = Math.max(
-                db.severity_breakdown.Low,
-                db.severity_breakdown.Medium,
-                db.severity_breakdown.High,
-                db.severity_breakdown.Critical,
-                1
-              );
-              const momDir = db.mom.delta > 0 ? "up" : db.mom.delta < 0 ? "down" : "flat";
+              const isUp = db.health_status === "healthy";
               return (
-                <div key={db.name} className={`db-health-tile status-${db.health_status}`}>
-                  {/* Tile header */}
-                  <div className="dbt-header">
-                    <div className="dbt-name-row">
-                      <span className={`dbt-status-dot dot-${db.health_status}`} />
-                      <span className="dbt-name">{db.name}</span>
-                      <span className="dbt-badge">{db.type}</span>
-                    </div>
-                    <span className={`dbt-status-label label-${db.health_status}`}>{statusLabel}</span>
-                  </div>
-
-                  {/* Counts */}
-                  <div className="dbt-counts">
-                    <div className="dbt-count-item">
-                      <span className="dbt-count-val">{db.total_incidents}</span>
-                      <span className="dbt-count-label">Total</span>
-                    </div>
-                    <div className="dbt-count-divider" />
-                    <div className="dbt-count-item">
-                      <span className="dbt-count-val">{db.last_7d_incidents}</span>
-                      <span className="dbt-count-label">Last 7d</span>
-                    </div>
-                    <div className="dbt-count-divider" />
-                    <div className="dbt-count-item">
-                      <span className="dbt-count-val">{db.last_30d_incidents}</span>
-                      <span className="dbt-count-label">Last 30d</span>
-                    </div>
-                  </div>
-
-                  {/* Severity bars */}
-                  <div className="dbt-sev-section">
-                    <div className="dbt-sev-title">Severity Split</div>
-                    {["Critical", "High", "Medium", "Low"].map((sev) => (
-                      <div key={sev} className="dbt-sev-row">
-                        <span className={`dbt-sev-label sev-${sev.toLowerCase()}`}>{sev}</span>
-                        <div className="dbt-sev-track">
-                          <div
-                            className={`dbt-sev-fill sev-fill-${sev.toLowerCase()}`}
-                            style={{ width: `${(db.severity_breakdown[sev] / sevMax) * 100}%` }}
-                          />
-                        </div>
-                        <span className="dbt-sev-count">{db.severity_breakdown[sev]}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Top issue & team */}
-                  <div className="dbt-meta-grid">
-                    <div className="dbt-meta-item">
-                      <span className="dbt-meta-label">Top Issue</span>
-                      <span className="dbt-meta-val">{db.top_incident_type.name}</span>
-                      <span className="dbt-meta-pct">{db.top_incident_type.percent}%</span>
-                    </div>
-                    <div className="dbt-meta-item">
-                      <span className="dbt-meta-label">Top Application</span>
-                      <span className="dbt-meta-val">{db.top_app_team.name}</span>
-                      <span className="dbt-meta-pct">{db.top_app_team.percent}%</span>
-                    </div>
-                  </div>
-
-                  {/* Type breakdown */}
-                  <div className="dbt-breakdown-section">
-                    <div className="dbt-sev-title">Issue Breakdown</div>
-                    {db.type_breakdown.map((t) => (
-                      <div key={t.name} className="dbt-breakdown-row">
-                        <span className="dbt-breakdown-name">{t.name}</span>
-                        <div className="dbt-breakdown-track">
-                          <div className="dbt-breakdown-fill" style={{ width: `${t.percent}%` }} />
-                        </div>
-                        <span className="dbt-breakdown-pct">{t.percent}%</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Footer */}
-                  <div className="dbt-footer">
-                    <div className="dbt-footer-item">
-                      <span className="dbt-footer-label">Avg Resolution</span>
-                      <span className="dbt-footer-val">
-                        {db.avg_resolution_hours != null ? `${db.avg_resolution_hours}h` : "—"}
-                      </span>
-                    </div>
-                    <div className="dbt-footer-item">
-                      <span className="dbt-footer-label">MoM (30d)</span>
-                      <span className={`dbt-mom-val mom-${momDir}`}>
-                        {momDir === "up" ? "↑" : momDir === "down" ? "↓" : "→"}
-                        {" "}{Math.abs(db.mom.percent)}%
-                        {" "}({db.mom.delta >= 0 ? "+" : ""}{db.mom.delta})
-                      </span>
-                    </div>
-                    <div className="dbt-footer-item">
-                      <span className="dbt-footer-label">High/Crit %</span>
-                      <span className={`dbt-hc-pct ${db.high_crit_percent >= 30 ? "hc-danger" : db.high_crit_percent >= 15 ? "hc-warn" : "hc-ok"}`}>
-                        {db.high_crit_percent}%
-                      </span>
-                    </div>
-                  </div>
+                <div key={db.name} className={`dbt-pill ${isUp ? "pill-up" : "pill-down"}`}>
+                  <span className={`dbt-pill-dot ${isUp ? "dot-up" : "dot-down"}`} />
+                  <span className="dbt-pill-name">{db.name}</span>
+                  <span className="dbt-pill-type">{db.type}</span>
+                  <span className={`dbt-pill-status ${isUp ? "status-up" : "status-down"}`}>
+                    {isUp ? "Up & Running" : "Needs Attention"}
+                  </span>
                 </div>
               );
             })}
