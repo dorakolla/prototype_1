@@ -7,6 +7,7 @@ import random
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+import os, json
 try:
     from sentence_transformers import SentenceTransformer, util
 except Exception:  # pragma: no cover - optional runtime dependency
@@ -296,7 +297,7 @@ def _generate_sample_data(days: int = 180) -> list[dict]:
                 )
                 sev = rng.choices(SEVERITIES, weights=[50, 30, 15, 5])[0]
                 bi = _compute_business_impact(sev, inc_type)
-                # Simulate resolution time based on impact level
+                # Simulate resolution time based on impact 
                 sla_hrs = SLA_TARGETS.get(bi, 8)
                 # ~75% resolved within SLA, rest breach
                 if rng.random() < 0.75:
@@ -680,8 +681,20 @@ def _build_incident_type_summary(
     return model_summary
 
 
-def _summaries():
-    incidents = INCIDENTS
+def _apply_global_filters(
+    incidents: list[dict],
+    product_line: str | None,
+    app_team: str | None,
+) -> list[dict]:
+    if product_line:
+        incidents = [i for i in incidents if i["db_name"] == product_line]
+    if app_team:
+        incidents = [i for i in incidents if i.get("app_team") == app_team]
+    return incidents
+
+
+def _summaries(product_line: str | None = None, app_team: str | None = None):
+    incidents = _apply_global_filters(INCIDENTS, product_line, app_team)
 
     per_db = Counter([i["db_name"] for i in incidents])
     per_type = Counter([i["incident_type"] for i in incidents])
@@ -721,10 +734,11 @@ def _summaries():
     }
 
 
-def _patterns():
+def _patterns(product_line: str | None = None, app_team: str | None = None):
+    incidents = _apply_global_filters(INCIDENTS, product_line, app_team)
     weekday = Counter()
     hour = Counter()
-    for inc in INCIDENTS:
+    for inc in incidents:
         dt = _parse_dt(inc["occurred_at"])
         weekday[dt.strftime("%a")] += 1
         hour[dt.hour] += 1
@@ -744,21 +758,48 @@ def get_incidents():
     return jsonify(INCIDENTS)
 
 
+@app.get("/api/filter-options")
+def get_filter_options():
+    """Return available product lines and application teams.
+    If product_line is specified, app_teams are scoped to that product line's incidents.
+    """
+    product_line = request.args.get("product_line", "").strip() or None
+
+    product_lines = [db["name"] for db in DBS]
+
+    incidents = _apply_global_filters(INCIDENTS, product_line, None)
+    app_teams = sorted({i["app_team"] for i in incidents if i.get("app_team")})
+
+    return jsonify({
+        "product_lines": product_lines,
+        "app_teams": app_teams,
+    })
+
+
 @app.get("/api/summary")
 def get_summary():
-    return jsonify(_summaries())
+    product_line = request.args.get("product_line", "").strip() or None
+    app_team = request.args.get("app_team", "").strip() or None
+    return jsonify(_summaries(product_line=product_line, app_team=app_team))
 
 
 @app.get("/api/patterns")
 def get_patterns():
-    return jsonify(_patterns())
+    product_line = request.args.get("product_line", "").strip() or None
+    app_team = request.args.get("app_team", "").strip() or None
+    return jsonify(_patterns(product_line=product_line, app_team=app_team))
 
 
 @app.get("/api/incident-type-details")
 def get_incident_type_details():
     """Return enriched details for each incident type."""
+    product_line = request.args.get("product_line", "").strip() or None
+    app_team = request.args.get("app_team", "").strip() or None
+
+    source_incidents = _apply_global_filters(INCIDENTS, product_line, app_team)
+
     type_incidents: dict[str, list[dict]] = defaultdict(list)
-    for inc in INCIDENTS:
+    for inc in source_incidents:
         type_incidents[inc["incident_type"]].append(inc)
 
     today = date.today()
@@ -810,7 +851,7 @@ def get_incident_type_details():
             info=info,
             severity_breakdown=severity_breakdown,
             total_count=total,
-            total_incidents=len(INCIDENTS),
+            total_incidents=len(source_incidents),
             this_month_count=this_count,
             last_month_count=last_count,
             affected_databases=affected_dbs,
@@ -1444,6 +1485,17 @@ def get_executive_summary():
         quarterly[q] += 1
     quarterly_sorted = sorted(quarterly.items())
 
+    # ── Monthly Severity Trends ──
+    monthly_sev: dict[str, dict[str, int]] = defaultdict(lambda: {"Critical": 0, "High": 0, "Medium": 0, "Low": 0})
+    for inc in incidents:
+        mk = inc["occurred_at"][:7]
+        monthly_sev[mk][inc["severity"]] += 1
+    monthly_severity_trends = []
+    for mk in sorted(monthly_sev.keys()):
+        entry = {"month": mk}
+        entry.update(monthly_sev[mk])
+        monthly_severity_trends.append(entry)
+
     # ── Severity heatmap data (type × severity) ──
     heatmap = []
     for inc_type in INCIDENT_TYPES:
@@ -1577,7 +1629,113 @@ def get_executive_summary():
             row[f"{src}_pct"] = round((cnt / max(team_total, 1)) * 100, 1)
         row["total"] = team_total
         team_source_heatmap.append(row)
+    # ── Key Insights (classic title format) ──
+    key_insights = []
 
+    # 1. MoM trend
+    if mom:
+        pct = mom.get("percent", 0)
+        prev = mom.get("previous_count", 0)
+        curr = mom.get("last_count", 0)
+        if pct > 0:
+            key_insights.append({
+                "title": "Incident Volume Up",
+                "subtitle": f"{prev} last month to {curr} this month (+{pct}%)",
+                "sentiment": "bad",
+            })
+        elif pct < 0:
+            key_insights.append({
+                "title": "Incident Volume Down",
+                "subtitle": f"{prev} last month to {curr} this month ({abs(pct)}% reduction)",
+                "sentiment": "good",
+            })
+
+    # 2. Critical ratio
+    if total > 0 and critical_count > 0:
+        every_n = max(round(total / critical_count), 1)
+        key_insights.append({
+            "title": f"1 in {every_n} Incidents Are Critical",
+            "subtitle": f"{critical_count} critical out of {total} total incidents",
+            "sentiment": "bad" if every_n <= 6 else ("good" if every_n >= 12 else "neutral"),
+        })
+
+    # 3. Dominant source
+    if source_breakdown:
+        db_entry = next((s for s in source_breakdown if s["source"] == "Database"), None)
+        app_entry = next((s for s in source_breakdown if s["source"] == "Application"), None)
+        if db_entry and app_entry:
+            dominant = "Database" if db_entry["percentage"] > app_entry["percentage"] else "Application"
+            dom_pct = max(db_entry["percentage"], app_entry["percentage"])
+            key_insights.append({
+                "title": f"{dominant} Issues Lead at {dom_pct}%",
+                "subtitle": f"Primary driver of incidents across all teams",
+                "sentiment": "bad" if dom_pct > 70 else "neutral",
+            })
+
+    # 4. Top team
+    if team_contribution:
+        top = team_contribution[0]
+        key_insights.append({
+            "title": f"{top['team']} Team — Top Contributor",
+            "subtitle": f"{top['count']} incidents, accounting for {top['percentage']}% of total",
+            "sentiment": "neutral",
+        })
+
+    # 5. SLA compliance
+    crit_sla = next((s for s in sla_compliance if s["level"] == "Critical"), None)
+    if crit_sla:
+        cpct = crit_sla["compliance_pct"]
+        if cpct >= 90:
+            key_insights.append({
+                "title": f"Critical SLA On Track at {cpct}%",
+                "subtitle": f"{crit_sla['within_sla']} of {crit_sla['total']} resolved within target",
+                "sentiment": "good",
+            })
+        elif cpct >= 75:
+            key_insights.append({
+                "title": f"Critical SLA Slightly Below Target",
+                "subtitle": f"Currently at {cpct}% — target is 90%",
+                "sentiment": "neutral",
+            })
+        else:
+            key_insights.append({
+                "title": f"Critical SLA Needs Attention",
+                "subtitle": f"Only {cpct}% compliance — well below 90% target",
+                "sentiment": "bad",
+            })
+
+    # 6. Top risk area
+    if risk_areas:
+        top_risk = risk_areas[0]
+        key_insights.append({
+            "title": f"{top_risk['type']} — Top Risk Area",
+            "subtitle": f"{top_risk['risk_ratio']}% of its incidents are critical or high severity",
+            "sentiment": "bad",
+        })
+
+    # 7. Resolution time
+    all_res_hours = [i.get("resolution_hours", 0) for i in incidents if i.get("resolution_hours")]
+    if all_res_hours:
+        avg_hrs = round(sum(all_res_hours) / len(all_res_hours), 1)
+        if avg_hrs < 5:
+            key_insights.append({
+                "title": f"Fast Resolution at {avg_hrs}h Average",
+                "subtitle": f"Teams are resolving incidents quickly across {len(all_res_hours)} incidents",
+                "sentiment": "good",
+            })
+        elif avg_hrs > 12:
+            key_insights.append({
+                "title": f"Slow Resolution — {avg_hrs}h Average",
+                "subtitle": f"Resolution times need improvement across {len(all_res_hours)} incidents",
+                "sentiment": "bad",
+            })
+        else:
+            key_insights.append({
+                "title": f"Resolution Time — {avg_hrs}h Average",
+                "subtitle": f"Within acceptable range across {len(all_res_hours)} incidents",
+                "sentiment": "neutral",
+            })
+    
     return jsonify({
         "health_score": health_score,
         "health_label": health_label,
@@ -1598,6 +1756,7 @@ def get_executive_summary():
         "top_risk_areas": risk_areas[:3],
         "team_accountability": teams,
         "quarterly_trends": quarterly_sorted,
+        "monthly_severity_trends": monthly_severity_trends,
         "severity_heatmap": heatmap,
         "strategic_actions": strategic_actions,
         "sla_compliance": sla_compliance,
@@ -1605,8 +1764,194 @@ def get_executive_summary():
         "source_breakdown": source_breakdown,
         "source_trend": source_trend,
         "team_source_heatmap": team_source_heatmap,
+        "key_insights": key_insights,
     })
 
 
+@app.get("/api/team-analysis/<team_name>")
+def get_team_analysis(team_name: str):
+    """
+    Full Gemini-powered dashboard for a team.
+    All charts are generated by Gemini based on each team's unique data.
+    """
+    api_key = 'AIzaSyBFEIWuN72GU0Qq1oBb4lvH0XK4CWhdFaM'
+
+    # ── Filter incidents for this team ──
+    team_incs = [i for i in INCIDENTS if i.get("app_team") == team_name]
+    if not team_incs:
+        return jsonify({"error": f"No incidents found for team '{team_name}'"}), 404
+
+    total = len(team_incs)
+    today_d = date.today()
+
+    # ── Compute KPI metrics (for header cards) ──
+    sev_dist = Counter(i["severity"] for i in team_incs)
+    type_dist = Counter(i["incident_type"] for i in team_incs)
+    source_dist = Counter(i.get("incident_source", "Other") for i in team_incs)
+    impact_dist = Counter(i.get("business_impact", "Low") for i in team_incs)
+    status_dist = Counter(i.get("status", "Open") for i in team_incs)
+    critical_count = sev_dist.get("Critical", 0)
+    high_count = sev_dist.get("High", 0)
+
+    res_hours_list = [i["resolution_hours"] for i in team_incs if i.get("resolution_hours")]
+    avg_res_hours = round(sum(res_hours_list) / len(res_hours_list), 1) if res_hours_list else 0
+
+    sla_breached = sum(
+        1 for i in team_incs
+        if i.get("resolution_hours", 0) > SLA_TARGETS.get(i.get("business_impact", "Low"), 24)
+    )
+    sla_pct = round((total - sla_breached) / total * 100, 1) if total else 0
+
+    # Risk level
+    crit_high_ratio = (critical_count + high_count) / max(total, 1)
+    if crit_high_ratio >= 0.5 or critical_count >= 5:
+        risk_level = "critical"
+    elif crit_high_ratio >= 0.35 or critical_count >= 3:
+        risk_level = "high"
+    elif crit_high_ratio >= 0.2:
+        risk_level = "medium"
+    else:
+        risk_level = "low"
+
+    # MoM
+    this_month = today_d.strftime("%Y-%m")
+    last_month_date = today_d.replace(day=1) - timedelta(days=1)
+    last_month = last_month_date.strftime("%Y-%m")
+    this_month_count = sum(1 for i in team_incs if i["occurred_at"][:7] == this_month)
+    last_month_count = sum(1 for i in team_incs if i["occurred_at"][:7] == last_month)
+    mom_delta = this_month_count - last_month_count
+    mom_pct = round((mom_delta / max(last_month_count, 1)) * 100, 1)
+
+    # Monthly trend data
+    from collections import OrderedDict
+    monthly_trend = OrderedDict()
+    for m in range(5, -1, -1):
+        ref = today_d.replace(day=1) - timedelta(days=m * 28)
+        key = ref.strftime("%b %Y")
+        monthly_trend[key] = {"Critical": 0, "High": 0, "Medium": 0, "Low": 0}
+    for i in team_incs:
+        try:
+            d = datetime.fromisoformat(i["occurred_at"]).date()
+            key = d.strftime("%b %Y")
+            if key in monthly_trend:
+                monthly_trend[key][i["severity"]] += 1
+        except Exception:
+            pass
+
+    # SLA per impact
+    sla_by_impact = {}
+    for lvl in IMPACT_LEVELS:
+        lvl_incs = [i for i in team_incs if i.get("business_impact") == lvl]
+        if lvl_incs:
+            target_hrs = SLA_TARGETS.get(lvl, 8)
+            within = sum(1 for i in lvl_incs if i.get("resolution_hours", 0) <= target_hrs)
+            sla_by_impact[lvl] = {
+                "total": len(lvl_incs), "within_sla": within,
+                "breached": len(lvl_incs) - within,
+                "compliance_pct": round((within / len(lvl_incs)) * 100, 1),
+            }
+
+    # ── Build comprehensive data summary for Gemini ──
+    data_summary = (
+        f"Team: {team_name}\n"
+        f"Total incidents: {total}\n"
+        f"Severity distribution: {dict(sev_dist)}\n"
+        f"Incident types: {dict(type_dist)}\n"
+        f"Incident source (Database vs App): {dict(source_dist)}\n"
+        f"Business impact levels: {dict(impact_dist)}\n"
+        f"Status distribution: {dict(status_dist)}\n"
+        f"SLA compliance: {sla_pct}% overall\n"
+        f"SLA by impact: {sla_by_impact}\n"
+        f"Average resolution time: {avg_res_hours}h\n"
+        f"Month-over-Month change: {mom_delta:+d} ({mom_pct:+.1f}%)\n"
+        f"Monthly trend (last 6 months):\n"
+        + "\n".join(f"  {month}: {counts}" for month, counts in monthly_trend.items())
+    )
+
+    prompt = (
+        "You are an expert SRE analyzing incident data for a specific team. "
+        "Based on the data below, generate a FULL DASHBOARD with 4-6 charts that best reveal this team's unique patterns.\n\n"
+        "Return a JSON object with this structure:\n"
+        "{\n"
+        '  "charts": [\n'
+        '    {\n'
+        '      "chart_type": "bar" | "line" | "doughnut" | "horizontalBar",\n'
+        '      "chart_title": "<descriptive title>",\n'
+        '      "chart_labels": ["label1", "label2", ...],\n'
+        '      "chart_datasets": [\n'
+        '        {"label": "<series>", "data": [num, ...], "backgroundColor": "<hex or array of hex>", "borderColor": "<hex>"}\n'
+        '      ],\n'
+        '      "stacked": true | false,\n'
+        '      "description": "<1 sentence explaining what this chart shows>"\n'
+        '    }\n'
+        '  ],\n'
+        '  "insight": "<3-4 sentence deep analysis of this team\'s incident patterns, unique risks, and trends>",\n'
+        '  "recommendation": "<2-3 concrete actions the team should take, based on data patterns>",\n'
+        '  "risk_level": "low" | "medium" | "high" | "critical"\n'
+        "}\n\n"
+        "RULES:\n"
+        "- Generate 4-6 charts, each one showing different aspect of the data\n"
+        "- Include at least: severity breakdown, monthly trend, incident type distribution, and one unique insight chart\n"
+        "- Use Chart.js-compatible colors (#hex format). Use these severity colors: Critical=#ef4444, High=#f97316, Medium=#f59e0b, Low=#60a5fa\n"
+        "- For 'horizontalBar' type, the frontend will render as Bar with indexAxis='y'\n"
+        "- For stacked bar charts, set stacked=true\n"
+        "- Make the charts tailored to THIS team's specific data patterns - don't be generic\n"
+        "- Return ONLY valid JSON, no markdown or explanation\n\n"
+        f"DATA:\n{data_summary}"
+    )
+
+    # ── Call Gemini ──
+    charts_data = None
+    gemini_error = None
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            model_name="gemini-2.5-flash",
+            generation_config=genai.GenerationConfig(
+                temperature=0.3,
+                max_output_tokens=8192,
+                response_mime_type="application/json",
+            ),
+        )
+        response = model.generate_content(prompt)
+        raw = response.text.strip()
+        print("\n" + "=" * 80)
+        print(f"GEMINI RESPONSE FOR: {team_name}")
+        print("=" * 80)
+        print(raw)
+        print("=" * 80 + "\n")
+        try:
+            charts_data = json.loads(raw)
+        except json.JSONDecodeError:
+            match = re.search(r'\{[\s\S]*\}', raw)
+            if match:
+                charts_data = json.loads(match.group(0))
+    except Exception as e:
+        gemini_error = str(e)
+        print(f"\n⚠️ GEMINI ERROR for {team_name}: {gemini_error}\n")
+
+    # ── Build response ──
+    result = {
+        "team": team_name,
+        "total_incidents": total,
+        "critical_count": critical_count,
+        "high_count": high_count,
+        "sla_compliance_pct": sla_pct,
+        "avg_resolution_hours": avg_res_hours,
+        "risk_level": charts_data.get("risk_level", risk_level) if charts_data else risk_level,
+        "mom_delta": mom_delta,
+        "mom_pct": mom_pct,
+        "charts": charts_data.get("charts", []) if charts_data else [],
+        "insight": charts_data.get("insight", "") if charts_data else "",
+        "recommendation": charts_data.get("recommendation", "") if charts_data else "",
+        "gemini_error": gemini_error,
+    }
+    return jsonify(result)
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    port = int(os.environ.get("FLASK_PORT", 5001))
+    app.run(host="0.0.0.0", port=port, debug=True)
+
+

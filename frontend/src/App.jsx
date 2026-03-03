@@ -22,6 +22,10 @@ ChartJS.register(
   Legend
 );
 
+// Dark mode defaults for Chart.js
+ChartJS.defaults.color = "#8b95a8";
+ChartJS.defaults.borderColor = "rgba(54,59,71,0.7)";
+
 const chartColors = {
   gold: "#f0b429",
   teal: "#2ec4b6",
@@ -62,11 +66,40 @@ export default function App() {
   const [suggestionAuthor, setSuggestionAuthor] = useState("");
   const [submittingSuggestion, setSubmittingSuggestion] = useState(false);
 
+  // ── Global filters ──
+  const [productLineFilter, setProductLineFilter] = useState("");
+  const [appFilter, setAppFilter] = useState("");
+  const [filterOptions, setFilterOptions] = useState({ product_lines: [], app_teams: [] });
+
+  // Build query string from active filters
+  const buildFilterQs = (pl, ap) => {
+    const p = new URLSearchParams();
+    if (pl) p.set("product_line", pl);
+    if (ap) p.set("app_team", ap);
+    const s = p.toString();
+    return s ? `?${s}` : "";
+  };
+
+  // Fetch app teams whenever product line changes
   useEffect(() => {
+    const qs = productLineFilter
+      ? `?product_line=${encodeURIComponent(productLineFilter)}`
+      : "";
+    fetchJson(`/api/filter-options${qs}`).then((data) => {
+      setFilterOptions(data);
+      // reset app filter if currently selected team no longer available
+      setAppFilter((prev) => (data.app_teams.includes(prev) ? prev : ""));
+    });
+  }, [productLineFilter]);
+
+  // Fetch main data whenever filters change (runs on mount too)
+  useEffect(() => {
+    const qs = buildFilterQs(productLineFilter, appFilter);
+    setLoading(true);
     Promise.all([
-      fetchJson("/api/summary"),
-      fetchJson("/api/patterns"),
-      fetchJson("/api/incident-type-details"),
+      fetchJson(`/api/summary${qs}`),
+      fetchJson(`/api/patterns${qs}`),
+      fetchJson(`/api/incident-type-details${qs}`),
     ])
       .then(([summaryData, patternsData, typeDetails]) => {
         setSummary(summaryData);
@@ -74,7 +107,7 @@ export default function App() {
         setIncidentTypeDetails(typeDetails);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [productLineFilter, appFilter]);
 
   const trackEvent = (name, meta = {}) =>
     fetch("/api/track", {
@@ -403,6 +436,74 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {/* Global Filters */}
+      <section className="global-filter-bar">
+        <div className="gf-label">Filters</div>
+        <div className="gf-controls">
+          <div className="gf-group">
+            <label className="gf-field-label" htmlFor="pl-filter">Product Line</label>
+            <select
+              id="pl-filter"
+              className="select gf-select"
+              value={productLineFilter}
+              onChange={(e) => setProductLineFilter(e.target.value)}
+            >
+              <option value="">All Product Lines</option>
+              {filterOptions.product_lines.map((pl) => (
+                <option key={pl} value={pl}>{pl}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="gf-group">
+            <label className="gf-field-label" htmlFor="app-filter">
+              Application
+              {productLineFilter && (
+                <span className="gf-scoped-tag">scoped to {productLineFilter}</span>
+              )}
+            </label>
+            <select
+              id="app-filter"
+              className="select gf-select"
+              value={appFilter}
+              onChange={(e) => setAppFilter(e.target.value)}
+              disabled={filterOptions.app_teams.length === 0}
+            >
+              <option value="">All Applications</option>
+              {filterOptions.app_teams.map((team) => (
+                <option key={team} value={team}>{team}</option>
+              ))}
+            </select>
+          </div>
+
+          {(productLineFilter || appFilter) && (
+            <button
+              className="gf-clear-btn"
+              onClick={() => { setProductLineFilter(""); setAppFilter(""); }}
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+
+        {(productLineFilter || appFilter) && (
+          <div className="gf-active-chips">
+            {productLineFilter && (
+              <span className="gf-chip">
+                {productLineFilter}
+                <button onClick={() => setProductLineFilter("")} aria-label="Remove product line filter">×</button>
+              </span>
+            )}
+            {appFilter && (
+              <span className="gf-chip">
+                {appFilter}
+                <button onClick={() => setAppFilter("")} aria-label="Remove application filter">×</button>
+              </span>
+            )}
+          </div>
+        )}
+      </section>
 
       {/* Actionable Insights Dropdown */}
       <section className="insights-section">
