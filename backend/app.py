@@ -874,6 +874,112 @@ def get_incident_type_details():
     return jsonify(results)
 
 
+@app.get("/api/db-health")
+def get_db_health():
+    """Per-database health tiles: status, severity split, top issue, top team, MoM trend."""
+    product_line = request.args.get("product_line", "").strip() or None
+    app_team = request.args.get("app_team", "").strip() or None
+
+    source = _apply_global_filters(INCIDENTS, product_line, app_team)
+
+    today = date.today()
+    last_7d_cutoff  = today - timedelta(days=7)
+    last_30d_cutoff = today - timedelta(days=30)
+    last_60d_cutoff = today - timedelta(days=60)
+
+    target_dbs = [db for db in DBS if not product_line or db["name"] == product_line]
+
+    result = []
+    for db in target_dbs:
+        db_incs = [i for i in source if i["db_name"] == db["name"]]
+        total = len(db_incs)
+
+        last_7d  = [i for i in db_incs if _parse_dt(i["occurred_at"]).date() >= last_7d_cutoff]
+        last_30d = [i for i in db_incs if _parse_dt(i["occurred_at"]).date() >= last_30d_cutoff]
+        prev_30d = [i for i in db_incs
+                    if last_60d_cutoff <= _parse_dt(i["occurred_at"]).date() < last_30d_cutoff]
+
+        # Severity breakdown (all time)
+        sev_counter = Counter(i["severity"] for i in db_incs)
+        severity = {s: sev_counter.get(s, 0) for s in SEVERITIES}
+
+        # Recent severity for health scoring (last 30d)
+        rec_sev = Counter(i["severity"] for i in last_30d)
+        rec_total = len(last_30d)
+        critical_pct  = _pct(rec_sev.get("Critical", 0), rec_total)
+        high_crit_pct = _pct(rec_sev.get("Critical", 0) + rec_sev.get("High", 0), rec_total)
+
+        prev_count = len(prev_30d)
+        curr_count = len(last_30d)
+        rate_delta_pct = _pct(curr_count - prev_count, prev_count) if prev_count else 0
+
+        # Health status
+        if critical_pct >= 15 or (high_crit_pct >= 30 and rate_delta_pct > 20):
+            health_status = "critical"
+        elif critical_pct >= 5 or high_crit_pct >= 20 or rate_delta_pct > 25:
+            health_status = "warning"
+        else:
+            health_status = "healthy"
+
+        # Top incident type
+        type_ctr = Counter(i["incident_type"] for i in db_incs)
+        top_type = type_ctr.most_common(1)
+
+        # Top app team
+        team_ctr = Counter(i.get("app_team", "Unknown") for i in db_incs)
+        top_team = team_ctr.most_common(1)
+
+        # Average resolution time (last 30d)
+        resolved = [i for i in last_30d if i.get("resolution_hours")]
+        avg_res = round(sum(i["resolution_hours"] for i in resolved) / len(resolved), 1) if resolved else None
+
+        # Incident type breakdown (top 3)
+        type_breakdown = [
+            {"name": t, "count": c, "percent": _pct(c, total)}
+            for t, c in type_ctr.most_common(3)
+        ]
+
+        # App team breakdown (top 3)
+        team_breakdown = [
+            {"name": t, "count": c, "percent": _pct(c, total)}
+            for t, c in team_ctr.most_common(3)
+        ]
+
+        result.append({
+            "name": db["name"],
+            "type": db["type"],
+            "engine": db["engine"],
+            "health_status": health_status,
+            "total_incidents": total,
+            "last_7d_incidents": len(last_7d),
+            "last_30d_incidents": curr_count,
+            "severity_breakdown": severity,
+            "high_crit_percent": round(high_crit_pct, 1),
+            "critical_percent": round(critical_pct, 1),
+            "top_incident_type": {
+                "name": top_type[0][0] if top_type else None,
+                "count": top_type[0][1] if top_type else 0,
+                "percent": _pct(top_type[0][1], total) if top_type and total else 0,
+            },
+            "top_app_team": {
+                "name": top_team[0][0] if top_team else None,
+                "count": top_team[0][1] if top_team else 0,
+                "percent": _pct(top_team[0][1], total) if top_team and total else 0,
+            },
+            "type_breakdown": type_breakdown,
+            "team_breakdown": team_breakdown,
+            "avg_resolution_hours": avg_res,
+            "mom": {
+                "previous_count": prev_count,
+                "current_count": curr_count,
+                "delta": curr_count - prev_count,
+                "percent": round(rate_delta_pct, 1),
+            },
+        })
+
+    return jsonify(result)
+
+
 @app.get("/api/common-causes")
 def get_common_causes():
     period = request.args.get("period", "90d").strip().lower()
